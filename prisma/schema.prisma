@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -20,12 +18,13 @@ model Worker {
 }
 
 model Job {
-  id        Int       @id @default(autoincrement())
-  title     String    @unique
-  reward    Float     // Predefined reward in CZK
-  workLogs  WorkLog[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id              Int              @id @default(autoincrement())
+  title           String           @unique
+  reward          Float            // Predefined reward in CZK
+  workLogs        WorkLog[]
+  recommendations Recommendation[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 }
 
 model WorkLog {
@@ -36,7 +35,30 @@ model WorkLog {
   job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
   date       DateTime
   isBilled   Boolean  @default(false)
-  invoiceId  String?  // Optional: tracks the Fakturoid invoice ID/number
+  invoiceId  String?  // Keeps Fakturoid invoice number
+  invoice    Invoice? @relation(fields: [invoiceId], references: [invoiceNumber], onDelete: SetNull)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model Invoice {
+  id            Int       @id @default(autoincrement())
+  invoiceNumber String    @unique
+  amount        Float
+  status        String    @default("Unpaid") // "Unpaid", "Paid"
+  issuedAt      DateTime  @default(now())
+  fakturoidUrl  String?
+  workLogs      WorkLog[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Recommendation {
+  id              Int      @id @default(1)
+  title           String   // e.g., "Front lobby cleaning"
+  conditionType   String   // "ALWAYS", "DAYS_SINCE_LAST_JOB", "UNBILLED_REWARD_BELOW", "NEVER"
+  conditionValue  Float    @default(0)
+  jobId           Int?
+  job             Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  updatedAt       DateTime @updatedAt
 }

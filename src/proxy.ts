@@ -6,14 +6,28 @@ export async function proxy(request: NextRequest) {
   const { nextUrl, cookies } = request;
   const path = nextUrl.pathname;
 
-  // Check authentication only on /admin paths
-  if (path.startsWith("/admin")) {
-    const sessionCookie = cookies.get("svj_admin_session")?.value;
-    const adminPassword = process.env.ADMIN_PASSWORD || "super-secret-password";
-    const expectedHash = await hashPassword(adminPassword);
+  const adminPassword = process.env.ADMIN_PASSWORD || "12345678";
+  const portalPassword = process.env.PORTAL_PASSWORD || "12345678";
 
-    if (!sessionCookie || sessionCookie !== expectedHash) {
-      // Redirect to the login page
+  const expectedAdminHash = await hashPassword(adminPassword);
+  const expectedPortalHash = await hashPassword(portalPassword);
+
+  const adminSession = cookies.get("svj_admin_session")?.value;
+  const portalSession = cookies.get("svj_portal_session")?.value;
+
+  const isAdminAuthenticated = adminSession === expectedAdminHash;
+  const isPortalAuthenticated = portalSession === expectedPortalHash || isAdminAuthenticated;
+
+  // Check authentication for admin panel paths
+  if (path.startsWith("/admin")) {
+    if (!isAdminAuthenticated) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("admin", "1");
+      return NextResponse.redirect(loginUrl);
+    }
+  } else {
+    // For the home page and all other pages, require portal or admin access
+    if (!isPortalAuthenticated) {
       const loginUrl = new URL("/login", request.url);
       return NextResponse.redirect(loginUrl);
     }
@@ -22,7 +36,9 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Only match the admin panel and its sub-pages
+// Protect all routes except API, static assets, favicon, and the login page
 export const config = {
-  matcher: ["/admin", "/admin/:path*"],
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|login).*)",
+  ],
 };

@@ -1,4 +1,4 @@
-import { getWorkers, getWorkLogs, getJobs, logoutAdmin } from "../actions";
+import { getWorkers, getWorkLogs, getJobs, getInvoices, getRecommendation, logoutAdmin } from "../actions";
 import AdminDashboard from "../AdminDashboard";
 import type { Metadata } from "next";
 
@@ -13,6 +13,8 @@ export default async function AdminPage() {
   const workers = await getWorkers();
   const jobs = await getJobs();
   const workLogs = await getWorkLogs();
+  const invoices = await getInvoices();
+  const { recommendation } = await getRecommendation();
 
   return (
     <div className="flex-1 w-full bg-zinc-950 text-zinc-100 flex flex-col min-h-screen relative overflow-hidden">
@@ -53,7 +55,13 @@ export default async function AdminPage() {
       </nav>
 
       <main className="flex-1 flex flex-col justify-start relative z-10">
-        <AdminDashboard workers={workers} jobs={jobs} workLogs={workLogs} />
+        <AdminDashboard
+          workers={workers}
+          jobs={jobs}
+          workLogs={workLogs}
+          invoices={invoices}
+          recommendation={recommendation}
+        />
       </main>
 
       <footer className="w-full border-t border-zinc-900/80 py-6 bg-zinc-950/40 shrink-0">

@@ -264,6 +264,19 @@ export async function createBatchInvoice() {
 
     const invoiceNumber = result.invoiceNumber || result.invoiceId;
 
+    // Calculate total amount
+    const totalAmount = invoiceItems.reduce((sum, item) => sum + item.reward, 0);
+
+    // Create Local Invoice Record
+    await prisma.invoice.create({
+      data: {
+        invoiceNumber: invoiceNumber,
+        amount: totalAmount,
+        status: "Unpaid",
+        fakturoidUrl: result.invoiceUrl || null,
+      },
+    });
+
     // 4. Mark all these logs as billed in DB, recording the invoice ID
     await prisma.workLog.updateMany({
       where: {
@@ -276,6 +289,7 @@ export async function createBatchInvoice() {
     });
 
     revalidatePath("/");
+    revalidatePath("/admin");
     return {
       success: true,
       invoiceUrl: result.invoiceUrl,
@@ -289,11 +303,140 @@ export async function createBatchInvoice() {
 }
 
 // ==========================================
-// SECURITY / ADMIN ACTIONS
+// INVOICE LIST / STATUS ACTIONS
+// ==========================================
+
+export async function getInvoices() {
+  try {
+    return await prisma.invoice.findMany({
+      orderBy: { issuedAt: "desc" },
+    });
+  } catch (error) {
+    console.error("Error fetching invoices:", error);
+    throw new Error("Failed to fetch invoices");
+  }
+}
+
+export async function updateInvoiceStatus(id: number, status: string) {
+  try {
+    const invoice = await prisma.invoice.update({
+      where: { id },
+      data: { status },
+    });
+    revalidatePath("/admin");
+    revalidatePath("/");
+    return { success: true, invoice };
+  } catch (error) {
+    console.error("Error updating invoice status:", error);
+    return { error: "Failed to update invoice status" };
+  }
+}
+
+export async function getLastInvoice() {
+  try {
+    return await prisma.invoice.findFirst({
+      orderBy: { issuedAt: "desc" },
+    });
+  } catch (error) {
+    console.error("Error fetching last invoice:", error);
+    return null;
+  }
+}
+
+// ==========================================
+// RECOMMENDATION ACTIONS
+// ==========================================
+
+export async function getRecommendation() {
+  try {
+    // Find or create default recommendation setting (id: 1)
+    let rec = await prisma.recommendation.findUnique({
+      where: { id: 1 },
+      include: { job: true },
+    });
+
+    if (!rec) {
+      rec = await prisma.recommendation.create({
+        data: {
+          id: 1,
+          title: "Clean the hallway & lobby",
+          conditionType: "ALWAYS",
+          conditionValue: 0,
+        },
+        include: { job: true },
+      });
+    }
+
+    // Find the latest issued invoice to compute days
+    const lastInvoice = await prisma.invoice.findFirst({
+      orderBy: { issuedAt: "desc" },
+    });
+
+    let daysSinceLastInvoice: number | null = null;
+    if (lastInvoice) {
+      const diffTime = Math.abs(new Date().getTime() - new Date(lastInvoice.issuedAt).getTime());
+      daysSinceLastInvoice = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    // Evaluate condition
+    let show = false;
+    if (rec.conditionType === "ALWAYS") {
+      show = true;
+    } else if (rec.conditionType === "NEVER") {
+      show = false;
+    } else if (rec.conditionType === "DAYS_SINCE_LAST_INVOICE") {
+      if (daysSinceLastInvoice === null) {
+        show = true; // No invoices issued yet, so show recommendation
+      } else if (daysSinceLastInvoice >= rec.conditionValue) {
+        show = true;
+      }
+    }
+
+    return { recommendation: rec, show, daysSinceLastInvoice };
+  } catch (error) {
+    console.error("Error in getRecommendation:", error);
+    return { recommendation: null, show: false, daysSinceLastInvoice: null };
+  }
+}
+
+export async function updateRecommendation(data: {
+  title: string;
+  conditionType: string;
+  conditionValue: number;
+  jobId: number | null;
+}) {
+  try {
+    const rec = await prisma.recommendation.upsert({
+      where: { id: 1 },
+      update: {
+        title: data.title.trim(),
+        conditionType: data.conditionType,
+        conditionValue: data.conditionValue,
+        jobId: data.jobId,
+      },
+      create: {
+        id: 1,
+        title: data.title.trim(),
+        conditionType: data.conditionType,
+        conditionValue: data.conditionValue,
+        jobId: data.jobId,
+      },
+    });
+    revalidatePath("/");
+    revalidatePath("/admin");
+    return { success: true, recommendation: rec };
+  } catch (error) {
+    console.error("Error updating recommendation:", error);
+    return { error: "Failed to update recommendation settings" };
+  }
+}
+
+// ==========================================
+// SECURITY / ADMIN / PORTAL ACTIONS
 // ==========================================
 
 export async function loginAdmin(password: string) {
-  const adminPassword = process.env.ADMIN_PASSWORD || "super-secret-password";
+  const adminPassword = process.env.ADMIN_PASSWORD || "12345678";
 
   if (password === adminPassword) {
     const cookiesList = await cookies();
@@ -314,5 +457,30 @@ export async function loginAdmin(password: string) {
 export async function logoutAdmin() {
   const cookiesList = await cookies();
   cookiesList.delete("svj_admin_session");
+  revalidatePath("/");
+}
+
+export async function loginPortal(password: string) {
+  const portalPassword = process.env.PORTAL_PASSWORD || "12345678";
+
+  if (password === portalPassword) {
+    const cookiesList = await cookies();
+    const hash = await hashPassword(portalPassword);
+    cookiesList.set("svj_portal_session", hash, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      path: "/",
+    });
+    return { success: true };
+  }
+
+  return { error: "Invalid password" };
+}
+
+export async function logoutPortal() {
+  const cookiesList = await cookies();
+  cookiesList.delete("svj_portal_session");
   revalidatePath("/");
 }

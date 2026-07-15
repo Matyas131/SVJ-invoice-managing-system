@@ -24,13 +24,43 @@ interface WorkLog {
   job: Job;
 }
 
+interface Invoice {
+  id: number;
+  invoiceNumber: string;
+  amount: number;
+  status: string;
+  issuedAt: Date;
+  fakturoidUrl: string | null;
+}
+
+interface Recommendation {
+  id: number;
+  title: string;
+  conditionType: string;
+  conditionValue: number;
+  jobId: number | null;
+  job?: Job | null;
+}
+
 interface PublicDashboardProps {
   workers: Worker[];
   jobs: Job[];
   workLogs: WorkLog[];
+  recommendation: Recommendation | null;
+  showRecommendation: boolean;
+  lastInvoice: Invoice | null;
+  daysSinceLastInvoice: number | null;
 }
 
-export default function PublicDashboard({ workers, jobs, workLogs }: PublicDashboardProps) {
+export default function PublicDashboard({
+  workers,
+  jobs,
+  workLogs,
+  recommendation,
+  showRecommendation,
+  lastInvoice,
+  daysSinceLastInvoice,
+}: PublicDashboardProps) {
   const [isPending, startTransition] = useTransition();
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
@@ -102,7 +132,7 @@ export default function PublicDashboard({ workers, jobs, workLogs }: PublicDashb
       {/* Toast Alert */}
       {toast && (
         <div
-          className={`fixed bottom-5 right-5 z-50 flex items-center gap-3 px-5 py-4 rounded-xl border shadow-2xl transition-all duration-300 animate-slide-in ${
+          className={`fixed bottom-5 right-5 z-50 flex items-center gap-3 px-5 py-4 rounded-xl border shadow-2xl transition-all duration-300 ${
             toast.type === "success"
               ? "bg-emerald-950/90 text-emerald-200 border-emerald-500/30"
               : "bg-rose-950/90 text-rose-200 border-rose-500/30"
@@ -148,8 +178,37 @@ export default function PublicDashboard({ workers, jobs, workLogs }: PublicDashb
         </a>
       </header>
 
+      {/* Dynamic Recommendation Banner */}
+      {showRecommendation && recommendation && (
+        <div className="mb-8 bg-gradient-to-r from-teal-500/10 via-indigo-500/10 to-transparent border border-teal-500/20 rounded-2xl p-6 relative overflow-hidden shadow-lg shadow-teal-950/20">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-teal-400/5 rounded-full blur-2xl -z-10" />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-teal-500/20 flex items-center justify-center text-teal-400 border border-teal-500/30 shrink-0">
+                <svg className="w-5 h-5 text-teal-400 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-teal-400 tracking-wider uppercase bg-teal-500/10 px-2 py-0.5 rounded">Recommended Work</span>
+                <h3 className="text-lg font-bold text-white mt-1">{recommendation.title}</h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  {daysSinceLastInvoice !== null ? (
+                    <>
+                      It has been <span className="text-teal-400 font-semibold">{daysSinceLastInvoice} days</span> since the last invoice was issued (threshold set to {recommendation.conditionValue} days).
+                    </>
+                  ) : (
+                    <>No invoices have been issued yet. Displaying recommendation threshold of {recommendation.conditionValue} days.</>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Overview stats tiles */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
         <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 backdrop-blur-sm shadow-xl">
           <div className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-2">Total Jobs Logged</div>
           <div className="text-3xl font-extrabold text-white">{totalJobs}</div>
@@ -163,6 +222,50 @@ export default function PublicDashboard({ workers, jobs, workLogs }: PublicDashb
         <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 backdrop-blur-sm shadow-xl">
           <div className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-2">Active House Residents</div>
           <div className="text-3xl font-extrabold text-indigo-400">{activeWorkersCount}</div>
+        </div>
+        <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 backdrop-blur-sm shadow-xl flex flex-col justify-between">
+          <div>
+            <div className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-2">Last Issued Invoice</div>
+            {lastInvoice ? (
+              <div>
+                <div className="text-lg font-extrabold text-white truncate">
+                  Invoice #{lastInvoice.invoiceNumber}
+                </div>
+                <div className="text-xs text-zinc-400 mt-1">
+                  Issued on: <span className="text-zinc-200 font-medium">{new Date(lastInvoice.issuedAt).toLocaleDateString("cs-CZ")}</span>
+                </div>
+                <div className="text-xs text-zinc-400 mt-0.5">
+                  Amount: <span className="text-teal-400 font-semibold">{lastInvoice.amount.toLocaleString("cs-CZ")} CZK</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-zinc-500 font-medium py-2">No invoices issued yet</div>
+            )}
+          </div>
+          {lastInvoice && (
+            <div className="mt-3 flex items-center justify-between">
+              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                lastInvoice.status === "Paid"
+                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25"
+                  : "bg-amber-500/10 text-amber-400 border border-amber-500/25"
+              }`}>
+                {lastInvoice.status}
+              </span>
+              {lastInvoice.fakturoidUrl && (
+                <a
+                  href={lastInvoice.fakturoidUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
+                >
+                  View Online
+                  <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
