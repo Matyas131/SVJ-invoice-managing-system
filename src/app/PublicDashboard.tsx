@@ -355,7 +355,7 @@ export default function PublicDashboard({
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-[#131416] border border-[#2b2c2f] rounded px-4 py-3 text-white focus:outline-none focus:border-zinc-500 transition-colors text-sm font-mono"
+                  className="w-full block min-w-0 bg-[#131416] border border-[#2b2c2f] rounded px-4 py-3 text-white focus:outline-none focus:border-zinc-500 transition-colors text-sm font-mono"
                   required
                 />
               </div>
@@ -461,7 +461,7 @@ export default function PublicDashboard({
         </div>
 
         {/* Column 3 & 4 (Combined spanning sections) */}
-        <div className="col-span-1 md:col-span-2 flex flex-col gap-4 flex-1">
+        <div className="col-span-1 md:col-span-2 xl:col-span-2 flex flex-col gap-4 flex-1">
           
           {/* Tile 6: CELKOVÝ PŘEHLED REZIDENTŮ (Clean Vertical Column Graph Only) */}
           <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between min-h-[376px] group flex-1">
@@ -517,10 +517,10 @@ export default function PublicDashboard({
           </div>
 
           {/* Sub Grid (Lower half of columns 3 & 4: Unbilled Rewards & Month Progress) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full flex-1">
             
             {/* Tile 7: ROZPRACOVANÉ ODMĚNY (ChatGPT API Usage - Progress bar layout) */}
-            <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between h-[180px] group flex-1">
+            <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between h-[180px] group">
               <div className="flex items-start justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">ROZPRACOVANÉ ODMĚNY</span>
                 <span className="text-zinc-700 group-hover:text-zinc-400 transition-colors cursor-help">● ● ●</span>
@@ -543,7 +543,7 @@ export default function PublicDashboard({
             </div>
 
             {/* Tile 8: MONTH PROGRESS CIRCLE GAUGE (Circular progress of days in month, extra large style) */}
-            <div className="bg-[#1c1d1f] p-4 rounded border border-[#2b2c2f]/40 flex flex-col justify-center items-center h-[180px] relative overflow-hidden group flex-1">
+            <div className="bg-[#1c1d1f] p-4 rounded border border-[#2b2c2f]/40 flex flex-col justify-center items-center h-[180px] relative overflow-hidden group">
               <div className="flex items-center justify-center w-full h-full relative">
                 {/* SVG circular progress ring tracking days (made as big as possible) */}
                 <div className="relative w-[160px] h-[160px] flex items-center justify-center shrink-0">
@@ -671,7 +671,7 @@ export default function PublicDashboard({
                             type="date"
                             value={editDate}
                             onChange={(e) => setEditDate(e.target.value)}
-                            className="bg-[#1c1d1f] border border-[#2b2c2f] rounded p-2 text-white font-mono text-xs focus:outline-none"
+                            className="w-full block min-w-0 bg-[#1c1d1f] border border-[#2b2c2f] rounded p-2 text-white font-mono text-xs focus:outline-none"
                             required
                           />
 
