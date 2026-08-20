@@ -466,7 +466,6 @@ export async function loginAdmin(password: string) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 30, // 30 days
       path: "/",
     });
     return { success: true };
@@ -491,7 +490,6 @@ export async function loginPortal(password: string) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 30, // 30 days
       path: "/",
     });
     return { success: true };

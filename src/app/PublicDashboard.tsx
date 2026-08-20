@@ -163,6 +163,26 @@ export default function PublicDashboard({
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
 
+  // Helper: Avatar color based on hash of worker name
+  const getAvatarColor = (name: string) => {
+    const colors = [
+      "bg-red-500/10 text-red-400 border border-red-500/20",
+      "bg-blue-500/10 text-blue-400 border border-blue-500/20",
+      "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+      "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+      "bg-purple-500/10 text-purple-400 border border-purple-500/20",
+      "bg-pink-500/10 text-pink-400 border border-pink-500/20",
+      "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20",
+      "bg-teal-500/10 text-teal-400 border border-teal-500/20",
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % colors.length;
+    return colors[index];
+  };
+
   // Calculate Metrics
   const totalInvoiced = invoices.reduce((sum, inv) => sum + inv.amount, 0);
   const totalInvoicesCount = invoices.length;
@@ -217,7 +237,7 @@ export default function PublicDashboard({
   }
 
   return (
-    <div className="flex-1 w-full bg-[#0d0e10] text-[#ffffff] font-mono p-4 sm:p-6 lg:p-8 xl:p-12 flex flex-col justify-between min-h-[calc(100vh-64px)] selection:bg-[#4f6272] selection:text-white">
+    <div className="flex-1 w-full bg-[#0d0e10] text-[#ffffff] font-mono pt-4 sm:pt-6 lg:pt-8 xl:pt-12 px-4 sm:px-6 lg:px-8 xl:px-12 pb-4 sm:pb-6 flex flex-col justify-between min-h-[calc(100vh-64px)] selection:bg-[#4f6272] selection:text-white">
       {/* Toast Alert */}
       {toast && (
         <div
@@ -258,7 +278,7 @@ export default function PublicDashboard({
               <span className="text-white/40 group-hover:text-white/80 transition-colors cursor-help">● ● ●</span>
             </div>
             <div className="flex items-baseline justify-between w-full">
-              <span className="text-7xl xl:text-8xl font-semibold tracking-tighter leading-none">
+              <span className="text-7xl xl:text-8xl font-semibold tracking-tighter leading-none font-digital">
                 {totalInvoiced >= 1000 ? `${(totalInvoiced / 1000).toFixed(1)}k` : totalInvoiced}
               </span>
               <span className="text-xs sm:text-sm text-white/60 font-bold uppercase tracking-widest">/ CZK</span>
@@ -272,7 +292,7 @@ export default function PublicDashboard({
               <span className="text-zinc-700 group-hover:text-zinc-400 transition-colors cursor-help">● ● ●</span>
             </div>
             <div className="flex items-baseline justify-between w-full">
-              <span className="text-7xl xl:text-8xl font-semibold tracking-tighter leading-none text-white">
+              <span className="text-7xl xl:text-8xl font-semibold tracking-tighter leading-none text-white font-digital">
                 {totalJobsCompleted}
               </span>
               <span className="text-xs sm:text-sm text-zinc-500 font-bold uppercase tracking-widest">/ LOGS</span>
@@ -362,7 +382,7 @@ export default function PublicDashboard({
             </div>
 
             <div className="my-auto flex items-baseline justify-between w-full">
-              <span className="text-8xl xl:text-9xl font-semibold tracking-tighter leading-none text-white">
+              <span className="text-8xl xl:text-9xl font-semibold tracking-tighter leading-none text-white font-digital">
                 {paidInvoicesCount}
               </span>
               <span className="text-xs sm:text-sm text-zinc-500 font-bold uppercase tracking-widest">
@@ -374,7 +394,7 @@ export default function PublicDashboard({
             <div className="border-t border-[#232427] pt-4 flex flex-col gap-1 text-zinc-400 uppercase">
               <div className="flex justify-between items-baseline">
                 <span className="text-[11px] font-bold tracking-widest text-zinc-500">VYPLACENO</span>
-                <span className="text-2xl font-bold text-emerald-400 font-mono">
+                <span className="text-2xl font-bold text-emerald-400 font-digital">
                   {paidInvoicesAmount.toLocaleString("cs-CZ")} CZK
                 </span>
               </div>
@@ -409,7 +429,7 @@ export default function PublicDashboard({
                     <>
                       <div>
                         {hasRecommendedJobBeenDoneBefore && daysSinceLastRecommendedJob !== null ? (
-                          <>Naposledy provedeno před <span className="font-bold text-white">{daysSinceLastRecommendedJob} dny</span>.</>
+                          <>Naposledy provedeno před <span className="font-bold text-white font-digital">{daysSinceLastRecommendedJob}</span> dny.</>
                         ) : (
                           <>Tato práce nebyla dosud nikdy provedena.</>
                         )}
@@ -474,7 +494,7 @@ export default function PublicDashboard({
 
                       {/* Display value above bar if greater than 0 */}
                       {item.amount > 0 && (
-                        <span className="text-[9px] text-zinc-400 mb-1.5 font-bold tracking-tight">
+                        <span className="text-[9px] text-zinc-400 mb-1.5 font-bold tracking-tight font-digital">
                           {item.amount >= 1000 ? `${(item.amount / 1000).toFixed(1)}k` : item.amount}
                         </span>
                       )}
@@ -500,13 +520,13 @@ export default function PublicDashboard({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
             
             {/* Tile 7: ROZPRACOVANÉ ODMĚNY (ChatGPT API Usage - Progress bar layout) */}
-            <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between h-[180px] group">
+            <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between h-[180px] group flex-1">
               <div className="flex items-start justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">ROZPRACOVANÉ ODMĚNY</span>
                 <span className="text-zinc-700 group-hover:text-zinc-400 transition-colors cursor-help">● ● ●</span>
               </div>
               <div className="flex items-baseline justify-between w-full">
-                <span className="text-5xl sm:text-6xl xl:text-7xl font-semibold tracking-tighter text-white leading-none">
+                <span className="text-5xl sm:text-6xl xl:text-7xl font-semibold tracking-tighter text-white leading-none font-digital">
                   {unbilledRewards.toLocaleString("cs-CZ")}
                 </span>
                 <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">
@@ -523,10 +543,10 @@ export default function PublicDashboard({
             </div>
 
             {/* Tile 8: MONTH PROGRESS CIRCLE GAUGE (Circular progress of days in month, extra large style) */}
-            <div className="bg-[#1c1d1f] p-4 rounded border border-[#2b2c2f]/40 flex flex-col justify-center items-center h-[180px] relative overflow-hidden group">
+            <div className="bg-[#1c1d1f] p-4 rounded border border-[#2b2c2f]/40 flex flex-col justify-center items-center h-[180px] relative overflow-hidden group flex-1">
               <div className="flex items-center justify-center w-full h-full relative">
                 {/* SVG circular progress ring tracking days (made as big as possible) */}
-                <div className="relative w-[150px] h-[150px] flex items-center justify-center shrink-0">
+                <div className="relative w-[160px] h-[160px] flex items-center justify-center shrink-0">
                   <svg className="absolute w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                     <circle 
                       cx="50" 
@@ -553,10 +573,10 @@ export default function PublicDashboard({
                   
                   {/* Day count and Month name inside the circle */}
                   <div className="text-center z-10 flex flex-col items-center">
-                    <span className="text-4xl sm:text-5xl font-semibold tracking-tighter text-white leading-none">
+                    <span className="text-5xl font-semibold tracking-tighter text-white leading-none font-digital">
                       {todayDay}
                     </span>
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1.5">
+                    <span className="text-[11px] text-zinc-500 font-bold uppercase tracking-widest mt-2">
                       {monthName}
                     </span>
                   </div>
@@ -679,7 +699,7 @@ export default function PublicDashboard({
                             <div>
                               <span className="text-[10px] text-zinc-500 block uppercase font-bold">Datum & Odměna</span>
                               <span className="text-zinc-400 font-mono">
-                                {new Date(log.date).toLocaleDateString("cs-CZ")} • <span className="text-emerald-400 font-bold">+{log.job.reward} CZK</span>
+                                {new Date(log.date).toLocaleDateString("cs-CZ")} • <span className="text-emerald-400 font-bold font-digital">+{log.job.reward} CZK</span>
                               </span>
                             </div>
                           </div>
