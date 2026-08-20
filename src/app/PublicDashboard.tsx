@@ -469,10 +469,10 @@ export default function PublicDashboard({
               <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">PŘEHLED REZIDENTŮ (CZK)</span>
               
               <div className="flex items-center gap-2 text-[9px] text-zinc-600 font-bold uppercase tracking-widest">
-                <span className="hover:text-zinc-300 cursor-pointer">7D</span>
-                <span className="hover:text-zinc-300 cursor-pointer">30D</span>
-                <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 cursor-pointer">3M</span>
-                <span className="hover:text-zinc-300 cursor-pointer">12M</span>
+                <span className="hover:text-zinc-300 cursor-pointer"></span>
+                <span className="hover:text-zinc-300 cursor-pointer"></span>
+                <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 cursor-pointer"></span>
+                <span className="hover:text-zinc-300 cursor-pointer"></span>
               </div>
             </div>
 
@@ -530,7 +530,7 @@ export default function PublicDashboard({
                   {unbilledRewards.toLocaleString("cs-CZ")}
                 </span>
                 <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">
-                  / 10k LIMIT
+                  / CZK
                 </span>
               </div>
               {/* Progress bar */}

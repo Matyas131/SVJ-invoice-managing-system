@@ -35,7 +35,7 @@ export default async function Page() {
 
       <footer className="w-full border-t border-zinc-900/80 py-6 bg-zinc-950/40 shrink-0">
         <div className="max-w-7xl mx-auto px-4 text-center text-xs text-zinc-600 font-medium">
-          &copy; {new Date().getFullYear()} SVJ Invoice Manager. Secure Job Tracking.
+          &copy; {new Date().getFullYear()} SVJ Invoice Manager
         </div>
       </footer>
     </div>
