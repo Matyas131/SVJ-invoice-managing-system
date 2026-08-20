@@ -86,7 +86,7 @@ export default function LoginPage() {
         {/* Card Header - simplified, no icon, no title, just subtitle */}
         <div className="text-center mb-2">
           <p className={`text-xs font-bold uppercase tracking-widest ${accentColor}`}>
-            {isAdminLogin ? "VSTUP PRO SPRÁVCE" : "VSTUP PRO MUDLI"}
+            {isAdminLogin ? "VSTUP PRO SPRÁVCE" : "VSTUP PRO MUDLY"}
           </p>
         </div>
 
@@ -164,7 +164,7 @@ export default function LoginPage() {
       </div>
 
       <div className="max-w-md w-full text-center mt-4 text-[9px] text-zinc-700 font-bold uppercase tracking-widest leading-relaxed">
-        Administrativní portál SVJ. Nepovolený přístup je přísně zakázán.
+        Administrativní portál SVJ
       </div>
     </div>
   );
