@@ -1,4 +1,4 @@
-import { getWorkers, getWorkLogs, getJobs, getRecommendation, getLastInvoice, logoutPortal } from "./actions";
+import { getWorkers, getWorkLogs, getJobs, getRecommendation, getInvoices, logoutPortal } from "./actions";
 import PublicDashboard from "./PublicDashboard";
 import type { Metadata } from "next";
 
@@ -14,7 +14,7 @@ export default async function Page() {
   const jobs = await getJobs();
   const workLogs = await getWorkLogs();
   const { recommendation, show: showRecommendation, daysSinceLastInvoice } = await getRecommendation();
-  const lastInvoice = await getLastInvoice();
+  const invoices = await getInvoices();
 
   return (
     <div className="flex-1 w-full bg-zinc-950 text-zinc-100 flex flex-col min-h-screen relative overflow-hidden">
@@ -62,7 +62,7 @@ export default async function Page() {
           recommendation={recommendation}
           showRecommendation={showRecommendation}
           daysSinceLastInvoice={daysSinceLastInvoice}
-          lastInvoice={lastInvoice}
+          invoices={invoices}
         />
       </main>
 
