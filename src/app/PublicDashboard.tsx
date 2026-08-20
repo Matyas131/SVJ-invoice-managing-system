@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import { createWorkLog } from "./actions";
+import { createWorkLog, deleteWorkLog, updateWorkLog } from "./actions";
 
 interface Worker {
   id: number;
@@ -64,10 +64,16 @@ export default function PublicDashboard({
   const [isPending, startTransition] = useTransition();
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   
-  // Log Work Modal state
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Modal State for viewing and editing work logs
+  const [isLogsListOpen, setIsLogsListOpen] = useState(false);
 
-  // Form State
+  // Editing work log state
+  const [editingLogId, setEditingLogId] = useState<number | null>(null);
+  const [editWorkerId, setEditWorkerId] = useState("");
+  const [editJobId, setEditJobId] = useState("");
+  const [editDate, setEditDate] = useState("");
+
+  // Form State (inline on the card)
   const [workerId, setWorkerId] = useState("");
   const [jobId, setJobId] = useState("");
   const [date, setDate] = useState(() => {
@@ -85,7 +91,7 @@ export default function PublicDashboard({
     if (!workerId || !jobId || !date) {
       showToast("Please fill in all fields", "error");
       return;
-      }
+    }
 
     startTransition(async () => {
       const res = await createWorkLog({
@@ -100,9 +106,53 @@ export default function PublicDashboard({
         showToast("Work logged successfully! Great job!", "success");
         setWorkerId("");
         setJobId("");
-        setIsModalOpen(false); // Close modal on success
       }
     });
+  };
+
+  // Edit / Delete Handlers inside Modal
+  const startEditing = (log: WorkLog) => {
+    setEditingLogId(log.id);
+    setEditWorkerId(String(log.workerId));
+    setEditJobId(String(log.jobId));
+    setEditDate(new Date(log.date).toISOString().split("T")[0]);
+  };
+
+  const cancelEditing = () => {
+    setEditingLogId(null);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent, logId: number) => {
+    e.preventDefault();
+    if (!editWorkerId || !editJobId || !editDate) return;
+
+    startTransition(async () => {
+      const res = await updateWorkLog(logId, {
+        workerId: parseInt(editWorkerId, 10),
+        jobId: parseInt(editJobId, 10),
+        date: editDate,
+      });
+
+      if (res.error) {
+        showToast(res.error, "error");
+      } else {
+        showToast("Záznam byl úspěšně upraven", "success");
+        setEditingLogId(null);
+      }
+    });
+  };
+
+  const handleDeleteLog = (logId: number) => {
+    if (confirm("Opravdu chcete smazat tento záznam o práci?")) {
+      startTransition(async () => {
+        const res = await deleteWorkLog(logId);
+        if (res.error) {
+          showToast(res.error, "error");
+        } else {
+          showToast("Záznam byl úspěšně smazán", "success");
+        }
+      });
+    }
   };
 
   // Helper: Initials
@@ -141,7 +191,6 @@ export default function PublicDashboard({
 
   const totalJobsCompleted = workLogs.length;
   const unbilledLogs = workLogs.filter((log) => !log.isBilled);
-  const unbilledCount = unbilledLogs.length;
   const unbilledRewards = unbilledLogs.reduce((sum, log) => sum + log.job.reward, 0);
 
   const billedLogs = workLogs.filter((log) => log.isBilled);
@@ -164,10 +213,9 @@ export default function PublicDashboard({
     .slice(0, 6); // Take top 6 for the chart layout
 
   const maxAmount = Math.max(...leaderboard.map((item) => item.amount), 1);
-  const totalEarned = workLogs.reduce((sum, log) => sum + log.job.reward, 0);
 
   return (
-    <div className="flex-1 w-full bg-[#0d0e10] text-[#ffffff] font-mono p-4 sm:p-6 lg:p-8 flex flex-col justify-start">
+    <div className="flex-1 w-full bg-[#0d0e10] text-[#ffffff] font-mono p-4 sm:p-6 lg:p-8 flex flex-col justify-start selection:bg-[#4f6272] selection:text-white">
       {/* Toast Alert */}
       {toast && (
         <div
@@ -195,62 +243,8 @@ export default function PublicDashboard({
         </div>
       )}
 
-      {/* Top Navbar / Inspo Dashboard Status Bar */}
-      <header className="border-b border-[#232427] pb-4 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 shrink-0">
-        <div className="flex items-center gap-6">
-          {/* Launcher 9-dot Grid Icon */}
-          <div className="shrink-0 flex items-center justify-center p-1 bg-zinc-900 border border-[#232427] rounded cursor-pointer hover:border-zinc-700 transition-colors">
-            <svg className="w-4 h-4 text-zinc-400" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="3" y="3" width="4" height="4" rx="1" />
-              <rect x="10" y="3" width="4" height="4" rx="1" />
-              <rect x="17" y="3" width="4" height="4" rx="1" />
-              <rect x="3" y="10" width="4" height="4" rx="1" />
-              <rect x="10" y="10" width="4" height="4" rx="1" />
-              <rect x="17" y="10" width="4" height="4" rx="1" />
-              <rect x="3" y="17" width="4" height="4" rx="1" />
-              <rect x="10" y="17" width="4" height="4" rx="1" />
-              <rect x="17" y="17" width="4" height="4" rx="1" />
-            </svg>
-          </div>
-
-          {/* Metric details split by vertical borders */}
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">
-            <div className="flex items-center gap-2">
-              <span>CELKEM VYFAKT.:</span>
-              <span className="text-zinc-200">{totalInvoiced.toLocaleString("cs-CZ")} CZK</span>
-            </div>
-            <div className="h-3 w-[1px] bg-[#232427] hidden sm:block" />
-            <div className="flex items-center gap-2">
-              <span>ROZPRACOVÁNO:</span>
-              <span className="text-zinc-200">{unbilledRewards.toLocaleString("cs-CZ")} CZK</span>
-            </div>
-            <div className="h-3 w-[1px] bg-[#232427] hidden sm:block" />
-            <div className="flex items-center gap-2">
-              <span>SOUSEDÉ:</span>
-              <span className="text-zinc-200">{workers.length}</span>
-            </div>
-            <div className="h-3 w-[1px] bg-[#232427] hidden sm:block" />
-            <div className="flex items-center gap-2">
-              <span>TYPY PRACÍ:</span>
-              <span className="text-zinc-200">{jobs.length}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Profile Card Top Right */}
-        <div className="flex items-center gap-3 self-end lg:self-auto">
-          <div className="text-right">
-            <div className="text-[11px] font-bold text-white uppercase tracking-wider">SVJ PORTAL</div>
-            <div className="text-[9px] text-zinc-500 tracking-widest font-semibold">BEZPEČNÝ VSTUP</div>
-          </div>
-          <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-300">
-            SVJ
-          </div>
-        </div>
-      </header>
-
       {/* Main Grid Layout (Matching visual positions and dimensions of inspo) */}
-      <main className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-6">
+      <main className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         
         {/* Column 1 (Leftmost Column) */}
         <div className="flex flex-col gap-4">
@@ -258,41 +252,41 @@ export default function PublicDashboard({
           {/* Tile 1: VYFAKTUROVÁNO CELKEM (Today's Focus - Blue-grey accent) */}
           <div className="bg-[#4f6272] text-white p-5 rounded flex flex-col justify-between h-[180px] relative overflow-hidden group">
             <div className="flex items-start justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-white/80">VYFAKTUROVÁNO CELKEM</span>
-              <span className="text-white/40 group-hover:text-white/80 transition-colors cursor-help">⋮</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-white/80">VYFAKTUROVÁNO CELKEM</span>
+              <span className="text-white/40 group-hover:text-white/80 transition-colors cursor-help">● ● ●</span>
             </div>
-            <div>
-              <div className="text-4xl sm:text-5xl font-semibold tracking-tight leading-none">
+            <div className="flex items-baseline gap-2">
+              <span className="text-7xl xl:text-8xl font-semibold tracking-tighter leading-none">
                 {totalInvoiced >= 1000 ? `${(totalInvoiced / 1000).toFixed(1)}k` : totalInvoiced}
-              </div>
-              <div className="text-[10px] text-white/60 tracking-wider uppercase mt-1">/ CZK</div>
+              </span>
+              <span className="text-xs sm:text-sm text-white/60 font-bold uppercase tracking-widest">/ CZK</span>
             </div>
           </div>
 
           {/* Tile 2: SPLNĚNÉ PRÁCE (Completed Tasks - Dark background) */}
           <div className="bg-[#1c1d1f] p-5 rounded flex flex-col justify-between h-[180px] border border-[#2b2c2f]/40 relative group">
             <div className="flex items-start justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">SPLNĚNÉ PRÁCE</span>
-              <span className="text-zinc-700 group-hover:text-zinc-400 transition-colors cursor-help">⋮</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">SPLNĚNÉ PRÁCE</span>
+              <span className="text-zinc-700 group-hover:text-zinc-400 transition-colors cursor-help">● ● ●</span>
             </div>
-            <div>
-              <div className="text-5xl font-semibold tracking-tight leading-none text-white">
+            <div className="flex items-baseline gap-2">
+              <span className="text-7xl xl:text-8xl font-semibold tracking-tighter leading-none text-white">
                 {totalJobsCompleted}
-              </div>
-              <div className="text-[10px] text-zinc-500 tracking-widest uppercase mt-1">/ CELKEM ÚDŮ</div>
+              </span>
+              <span className="text-xs sm:text-sm text-zinc-500 font-bold uppercase tracking-widest">/ LOGS</span>
             </div>
           </div>
 
-          {/* Tile 3: LOG JOBS + LATEST WORKS (MJ Fast Hours - Tall Card) */}
-          <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between min-h-[380px] group">
-            <div className="flex items-start justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">LOG JOBS</span>
+          {/* Tile 3: LOG JOBS + LATEST WORKS (Inline form / no popup to log) */}
+          <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between min-h-[460px] group">
+            <div className="flex items-start justify-between w-full">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">ZAPSAT PRÁCI</span>
               
-              {/* Trigger Button - Circle with Up-Right Arrow */}
+              {/* Trigger Button - Circle with Up-Right Arrow (Open Edit logs list) */}
               <button 
-                onClick={() => setIsModalOpen(true)}
+                onClick={() => setIsLogsListOpen(true)}
                 className="w-7 h-7 rounded-full bg-[#c9c7b9] hover:bg-white text-[#1c1d1f] transition-all flex items-center justify-center hover:scale-105 active:scale-95 shadow-md"
-                title="Log Completed Work"
+                title="View and Edit Logged Jobs"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" />
@@ -300,18 +294,63 @@ export default function PublicDashboard({
               </button>
             </div>
 
-            <div className="my-6">
-              <div className="text-6xl font-semibold tracking-tight text-white leading-none">
-                {unbilledCount}
+            {/* Embedded Inline Form to Log Work Directly */}
+            <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-2.5 my-auto">
+              <div>
+                <select
+                  value={workerId}
+                  onChange={(e) => setWorkerId(e.target.value)}
+                  className="w-full bg-[#131416] border border-[#2b2c2f] rounded px-3 py-2 text-white focus:outline-none focus:border-zinc-500 transition-colors text-xs font-mono"
+                  required
+                >
+                  <option value="" disabled>-- Kdo pracoval? --</option>
+                  {workers.map((w) => (
+                    <option key={w.id} value={w.id} className="bg-[#1c1d1f]">
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="text-[10px] text-zinc-500 tracking-widest uppercase mt-1">/ NEVYFAKTUROVÁNO</div>
-            </div>
 
-            {/* Divider */}
-            <div className="border-t border-[#232427] pt-4 mt-auto">
+              <div>
+                <select
+                  value={jobId}
+                  onChange={(e) => setJobId(e.target.value)}
+                  className="w-full bg-[#131416] border border-[#2b2c2f] rounded px-3 py-2 text-white focus:outline-none focus:border-zinc-500 transition-colors text-xs font-mono"
+                  required
+                >
+                  <option value="" disabled>-- Hotová práce --</option>
+                  {jobs.map((j) => (
+                    <option key={j.id} value={j.id} className="bg-[#1c1d1f]">
+                      {j.title} ({j.reward} CZK)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full bg-[#131416] border border-[#2b2c2f] rounded px-3 py-2 text-white focus:outline-none focus:border-zinc-500 transition-colors text-xs font-mono"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isPending || workers.length === 0 || jobs.length === 0}
+                className="w-full bg-[#c9c7b9] hover:bg-white text-[#1c1d1f] font-bold py-2.5 rounded transition-colors text-[10px] uppercase tracking-widest disabled:opacity-40"
+              >
+                {isPending ? "Zapisuji..." : "ZAPISAT AKTIVITU"}
+              </button>
+            </form>
+
+            {/* Divider and Latest Activity avatars grid */}
+            <div className="border-t border-[#232427] pt-4 mt-4">
               <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">POSLEDNÍ AKTIVITY</h4>
               
-              {/* 2x3 Grid of circles for latest logs */}
               {workLogs.length === 0 ? (
                 <div className="text-[9px] text-zinc-600">Žádná historie</div>
               ) : (
@@ -347,15 +386,17 @@ export default function PublicDashboard({
           {/* Tile 4: PLACENÉ FAKTURY (Paid Invoices - Tall double-unit card) */}
           <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between h-[376px] group">
             <div className="flex items-start justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">PLACENÉ FAKTURY</span>
-              <span className="text-zinc-700 group-hover:text-zinc-400 transition-colors cursor-help">⋮</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">PLACENÉ FAKTURY</span>
+              <span className="text-zinc-700 group-hover:text-zinc-400 transition-colors cursor-help">● ● ●</span>
             </div>
 
-            <div className="my-auto">
-              <div className="text-6xl font-semibold tracking-tight text-white leading-none">
+            <div className="my-auto flex items-baseline gap-2">
+              <span className="text-7xl xl:text-8xl font-semibold tracking-tighter leading-none text-white">
                 {paidInvoicesCount}
-              </div>
-              <div className="text-[10px] text-zinc-500 tracking-widest uppercase mt-1">/ {totalInvoicesCount} FAKTUR</div>
+              </span>
+              <span className="text-xs sm:text-sm text-zinc-500 font-bold uppercase tracking-widest">
+                / {totalInvoicesCount}
+              </span>
             </div>
 
             <div className="border-t border-[#232427] pt-4 flex flex-col gap-1.5 text-[10px] tracking-wider text-zinc-400 uppercase">
@@ -385,7 +426,7 @@ export default function PublicDashboard({
             </div>
 
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-white/80">DOPORUČENÁ ÚDRŽBA</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-white/80">DOPORUČENÁ ÚDRŽBA</span>
               
               <div className="mt-8">
                 <h3 className="text-xl font-bold leading-snug uppercase">
@@ -419,12 +460,11 @@ export default function PublicDashboard({
         {/* Column 3 & 4 (Combined spanning sections) */}
         <div className="col-span-1 md:col-span-2 flex flex-col gap-4">
           
-          {/* Tile 6: CELKOVÝ PŘEHLED REZIDENTŮ (Total Balance - Double Width / Spans 2 Cols) */}
+          {/* Tile 6: CELKOVÝ PŘEHLED REZIDENTŮ (Clean Vertical Bar Chart Only) */}
           <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between min-h-[376px] group">
-            <div className="flex items-start justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">PŘEHLED REZIDENTŮ (CZK)</span>
+            <div className="flex items-start justify-between w-full mb-4">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">PŘEHLED REZIDENTŮ (CZK)</span>
               
-              {/* Mini Time Range selector from inspo */}
               <div className="flex items-center gap-2 text-[9px] text-zinc-600 font-bold uppercase tracking-widest">
                 <span className="hover:text-zinc-300 cursor-pointer">7D</span>
                 <span className="hover:text-zinc-300 cursor-pointer">30D</span>
@@ -433,51 +473,43 @@ export default function PublicDashboard({
               </div>
             </div>
 
-            {/* Total Balance Amount and the Vertical Bar Chart side by side */}
-            <div className="grid grid-cols-1 sm:grid-cols-5 gap-6 items-end mt-4 my-auto">
-              
-              {/* Earnings Amount */}
-              <div className="sm:col-span-2 text-left self-center sm:self-auto mb-4 sm:mb-0">
-                <div className="text-[10px] text-zinc-500 tracking-wider uppercase mb-1">CELKEM VYPLACENO</div>
-                <div className="text-4xl font-semibold tracking-tight text-white leading-none">
-                  {totalEarned.toLocaleString("cs-CZ")}
-                </div>
-                <span className="text-[10px] text-zinc-600 tracking-wider uppercase mt-1 block">CZK</span>
-              </div>
-
-              {/* Custom CSS Vertical Bar Chart representing worker earnings */}
-              <div className="sm:col-span-3 flex items-end justify-between h-[180px] px-2 border-b border-[#232427] gap-3">
-                {leaderboard.length === 0 ? (
-                  <div className="w-full text-center text-[10px] text-zinc-600 mb-6">Žádná statistika</div>
-                ) : (
-                  leaderboard.map((item, index) => {
-                    const percentage = (item.amount / maxAmount) * 100;
-                    // Colors alternating for the bars
-                    const barBg = index === 0 ? "bg-[#4f6272] hover:bg-white" : "bg-zinc-700 hover:bg-zinc-400";
-                    return (
-                      <div key={item.name} className="flex flex-col items-center flex-1 group/bar relative">
-                        {/* Tooltip above bar */}
-                        <div className="absolute bottom-full mb-2 hidden group-hover/bar:block bg-[#131416] text-[8px] text-zinc-300 p-2 rounded border border-[#2b2c2f] shadow-xl text-center z-50 whitespace-nowrap pointer-events-none">
-                          <span className="font-bold text-white block">{item.name}</span>
-                          <span className="text-emerald-400 font-bold block">{item.amount.toLocaleString()} CZK</span>
-                        </div>
-
-                        {/* Bar */}
-                        <div 
-                          className={`w-full rounded-t-sm transition-all duration-500 cursor-pointer ${barBg}`}
-                          style={{ height: `${Math.max(percentage, 5)}%` }}
-                        />
-
-                        {/* Label (Initials) */}
-                        <span className="text-[9px] text-zinc-500 mt-2 font-bold tracking-wider uppercase">
-                          {getInitials(item.name)}
-                        </span>
+            {/* Full-width & Full-height Vertical Bar Chart Column Graph */}
+            <div className="flex items-end justify-between h-[250px] px-2 border-b border-[#232427] gap-3 mt-auto w-full">
+              {leaderboard.length === 0 ? (
+                <div className="w-full text-center text-[10px] text-zinc-600 mb-6">Žádná statistika</div>
+              ) : (
+                leaderboard.map((item, index) => {
+                  const percentage = (item.amount / maxAmount) * 100;
+                  const barBg = index === 0 ? "bg-[#4f6272] hover:bg-white" : "bg-zinc-700 hover:bg-zinc-400";
+                  return (
+                    <div key={item.name} className="flex flex-col items-center flex-1 h-full justify-end group/bar relative">
+                      {/* Tooltip */}
+                      <div className="absolute bottom-full mb-2 hidden group-hover/bar:block bg-[#131416] text-[9px] text-zinc-300 p-2.5 rounded border border-[#2b2c2f] shadow-2xl text-center z-50 whitespace-nowrap pointer-events-none">
+                        <span className="font-bold text-white block mb-0.5">{item.name}</span>
+                        <span className="text-emerald-400 font-bold block">{item.amount.toLocaleString()} CZK</span>
                       </div>
-                    );
-                  })
-                )}
-              </div>
 
+                      {/* Display value above bar if greater than 0 */}
+                      {item.amount > 0 && (
+                        <span className="text-[9px] text-zinc-400 mb-1.5 font-bold tracking-tight">
+                          {item.amount >= 1000 ? `${(item.amount / 1000).toFixed(1)}k` : item.amount}
+                        </span>
+                      )}
+
+                      {/* Bar Graphic */}
+                      <div 
+                        className={`w-full rounded-t-sm transition-all duration-500 cursor-pointer ${barBg}`}
+                        style={{ height: `${Math.max(percentage, 8)}%` }}
+                      />
+
+                      {/* Label (Initials) */}
+                      <span className="text-[10px] text-zinc-500 mt-2.5 font-bold tracking-widest uppercase truncate max-w-full">
+                        {getInitials(item.name)}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -487,16 +519,18 @@ export default function PublicDashboard({
             {/* Tile 7: ROZPRACOVANÉ ODMĚNY (ChatGPT API Usage - Progress bar layout) */}
             <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between h-[180px] group">
               <div className="flex items-start justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">ROZPRACOVANÉ ODMĚNY</span>
-                <span className="text-zinc-700 group-hover:text-zinc-400 transition-colors cursor-help">⋮</span>
+                <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">ROZPRACOVANÉ ODMĚNY</span>
+                <span className="text-zinc-700 group-hover:text-zinc-400 transition-colors cursor-help">● ● ●</span>
               </div>
-              <div>
-                <div className="text-4xl font-semibold tracking-tight text-white leading-none">
+              <div className="flex items-baseline gap-2">
+                <span className="text-5xl sm:text-6xl xl:text-7xl font-semibold tracking-tighter text-white leading-none">
                   {unbilledRewards.toLocaleString("cs-CZ")}
-                </div>
-                <div className="text-[10px] text-zinc-500 tracking-wider uppercase mt-1">/ 10 000 CZK LIMIT</div>
+                </span>
+                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">
+                  / 10k
+                </span>
               </div>
-              {/* Sleek progress bar */}
+              {/* Progress bar */}
               <div className="w-full bg-[#131416] rounded-full h-1.5 overflow-hidden">
                 <div 
                   className="bg-[#4f6272] h-full rounded-full transition-all duration-500"
@@ -508,22 +542,21 @@ export default function PublicDashboard({
             {/* Tile 8: STAV VYÚČTOVÁNÍ (Work Life Balance - Circular progress layout) */}
             <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between h-[180px] group">
               <div className="flex items-start justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">STAV VYÚČTOVÁNÍ</span>
-                <span className="text-zinc-700 group-hover:text-zinc-400 transition-colors cursor-help">⋮</span>
+                <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">STAV VYÚČTOVÁNÍ</span>
+                <span className="text-zinc-700 group-hover:text-zinc-400 transition-colors cursor-help">● ● ●</span>
               </div>
 
               <div className="flex items-center justify-between gap-4 my-auto">
-                <div className="text-left">
-                  <div className="text-4xl font-semibold tracking-tight text-white leading-none">
-                    {billedRatio}%
-                  </div>
-                  <span className="text-[9px] text-zinc-500 tracking-widest uppercase mt-1.5 block">ODPRACOVÁNO FAKTUROVÁNO</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-5xl sm:text-6xl xl:text-7xl font-semibold tracking-tighter text-white leading-none">
+                    {billedRatio}
+                  </span>
+                  <span className="text-xs text-zinc-500 font-bold uppercase tracking-widest">%</span>
                 </div>
 
                 {/* SVG circular progress ring */}
                 <div className="relative w-20 h-20 shrink-0">
                   <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                    {/* Background track */}
                     <circle 
                       cx="50" 
                       cy="50" 
@@ -533,7 +566,6 @@ export default function PublicDashboard({
                       stroke="currentColor" 
                       fill="transparent" 
                     />
-                    {/* Active arc */}
                     <circle 
                       cx="50" 
                       cy="50" 
@@ -559,7 +591,7 @@ export default function PublicDashboard({
             className="bg-[#c9c7b9] hover:bg-white text-[#1c1d1f] p-5 rounded flex flex-col justify-between h-[180px] group transition-colors shadow-lg cursor-pointer"
           >
             <div className="flex items-start justify-between w-full">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#1c1d1f]/70">ZABEZPEČENÁ OBLAST</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[#1c1d1f]/70">ZABEZPEČENÁ OBLAST</span>
               
               {/* Arrow Indicator Button */}
               <div className="w-8 h-8 rounded-full bg-[#1c1d1f] text-white flex items-center justify-center transition-all group-hover:scale-105 active:scale-95">
@@ -570,7 +602,7 @@ export default function PublicDashboard({
             </div>
 
             <div className="mt-4">
-              <h3 className="text-3xl font-semibold tracking-tight uppercase leading-none">ADMINISTRACE</h3>
+              <h3 className="text-4xl sm:text-5xl font-semibold tracking-tighter uppercase leading-none">ADMINISTRACE</h3>
               <div className="text-[10px] text-[#1c1d1f]/60 tracking-widest uppercase mt-2">
                 PRO SPRÁVU FAKTUR A NASTAVENÍ SYSTÉMU
               </div>
@@ -581,14 +613,14 @@ export default function PublicDashboard({
 
       </main>
 
-      {/* Log Work Modal (Rendered when isModalOpen is true) */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#1c1d1f] border border-[#2b2c2f] p-6 rounded w-full max-w-md relative animate-in fade-in zoom-in duration-200">
+      {/* Logged Jobs List Modal (Arrow click opens this) */}
+      {isLogsListOpen && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1c1d1f] border border-[#2b2c2f] p-6 rounded w-full max-w-4xl max-h-[90vh] flex flex-col relative animate-in fade-in zoom-in duration-200">
             
             {/* Close Button */}
             <button 
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => setIsLogsListOpen(false)}
               className="absolute top-4 right-4 text-zinc-500 hover:text-white transition-colors"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -596,78 +628,112 @@ export default function PublicDashboard({
               </svg>
             </button>
 
-            <h2 className="text-lg font-bold text-white uppercase tracking-wider mb-6 flex items-center gap-2">
-              <svg className="w-4 h-4 text-[#c9c7b9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              Zapsat hotovou práci
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-6 flex items-center gap-2">
+              Seznam odpracovaných úloh
             </h2>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div>
-                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">
-                  Kdo práci vykonal?
-                </label>
-                <select
-                  value={workerId}
-                  onChange={(e) => setWorkerId(e.target.value)}
-                  className="w-full bg-[#131416] border border-[#2b2c2f] rounded px-4 py-3 text-white focus:outline-none focus:border-zinc-500 transition-colors text-xs font-mono"
-                  required
-                >
-                  <option value="" disabled>-- Vybrat jméno --</option>
-                  {workers.map((worker) => (
-                    <option key={worker.id} value={worker.id} className="bg-[#1c1d1f] text-white">
-                      {worker.name}
-                    </option>
+            {/* Table/List Container */}
+            <div className="flex-1 overflow-y-auto pr-1 text-xs">
+              {workLogs.length === 0 ? (
+                <div className="text-center py-12 text-zinc-500">Žádné záznamy o práci</div>
+              ) : (
+                <div className="space-y-3">
+                  {workLogs.map((log) => (
+                    <div key={log.id} className="border border-[#2b2c2f] p-3 rounded bg-[#131416] flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                      
+                      {editingLogId === log.id ? (
+                        /* Edit Mode Form */
+                        <form onSubmit={(e) => handleEditSubmit(e, log.id)} className="w-full grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
+                          <select
+                            value={editWorkerId}
+                            onChange={(e) => setEditWorkerId(e.target.value)}
+                            className="bg-[#1c1d1f] border border-[#2b2c2f] rounded p-2 text-white font-mono text-xs focus:outline-none"
+                            required
+                          >
+                            {workers.map((w) => (
+                              <option key={w.id} value={w.id}>{w.name}</option>
+                            ))}
+                          </select>
+
+                          <select
+                            value={editJobId}
+                            onChange={(e) => setEditJobId(e.target.value)}
+                            className="bg-[#1c1d1f] border border-[#2b2c2f] rounded p-2 text-white font-mono text-xs focus:outline-none"
+                            required
+                          >
+                            {jobs.map((j) => (
+                              <option key={j.id} value={j.id}>{j.title} ({j.reward} CZK)</option>
+                            ))}
+                          </select>
+
+                          <input
+                            type="date"
+                            value={editDate}
+                            onChange={(e) => setEditDate(e.target.value)}
+                            className="bg-[#1c1d1f] border border-[#2b2c2f] rounded p-2 text-white font-mono text-xs focus:outline-none"
+                            required
+                          />
+
+                          <div className="flex gap-2 justify-end">
+                            <button type="submit" className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold uppercase">
+                              Uložit
+                            </button>
+                            <button type="button" onClick={cancelEditing} className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] font-bold uppercase">
+                              Zrušit
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        /* Read Mode Row */
+                        <>
+                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div>
+                              <span className="text-[10px] text-zinc-500 block uppercase font-bold">Soused</span>
+                              <span className="font-bold text-white">{log.worker.name}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-zinc-500 block uppercase font-bold">Práce</span>
+                              <span className="text-zinc-300">{log.job.title}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-zinc-500 block uppercase font-bold">Datum & Odměna</span>
+                              <span className="text-zinc-400 font-mono">
+                                {new Date(log.date).toLocaleDateString("cs-CZ")} • <span className="text-emerald-400 font-bold">+{log.job.reward} CZK</span>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-end md:self-auto">
+                            {log.isBilled ? (
+                              <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                Fakturováno
+                              </span>
+                            ) : (
+                              <>
+                                <button 
+                                  onClick={() => startEditing(log)}
+                                  className="px-2.5 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors text-[10px] uppercase font-bold"
+                                >
+                                  Upravit
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteLog(log.id)}
+                                  className="px-2.5 py-1.5 rounded bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 hover:text-rose-300 transition-colors text-[10px] uppercase font-bold border border-rose-950/50"
+                                >
+                                  Smazat
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </>
+                      )}
+
+                    </div>
                   ))}
-                </select>
-              </div>
+                </div>
+              )}
+            </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">
-                  Co jste udělal?
-                </label>
-                <select
-                  value={jobId}
-                  onChange={(e) => setJobId(e.target.value)}
-                  className="w-full bg-[#131416] border border-[#2b2c2f] rounded px-4 py-3 text-white focus:outline-none focus:border-zinc-500 transition-colors text-xs font-mono"
-                  required
-                >
-                  <option value="" disabled>-- Vybrat typ práce (Odměna) --</option>
-                  {jobs.map((job) => (
-                    <option key={job.id} value={job.id} className="bg-[#1c1d1f] text-white">
-                      {job.title} ({job.reward.toLocaleString("cs-CZ")} CZK)
-                    </option>
-                  ))}
-                </select>
-                {jobs.length === 0 && (
-                  <p className="text-[10px] text-amber-500 mt-2">
-                    ⚠️ Nejsou definovány žádné práce. Požádejte administrátora o vytvoření.
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">
-                  Datum splnění
-                </label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-[#131416] border border-[#2b2c2f] rounded px-4 py-3 text-white focus:outline-none focus:border-zinc-500 transition-colors text-xs font-mono"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isPending || workers.length === 0 || jobs.length === 0}
-                className="w-full bg-[#c9c7b9] hover:bg-white text-[#1c1d1f] font-bold py-3.5 px-4 rounded transition-colors text-xs uppercase tracking-widest disabled:opacity-40"
-              >
-                {isPending ? "Zapisuji..." : "Zapsat aktivitu"}
-              </button>
-            </form>
           </div>
         </div>
       )}

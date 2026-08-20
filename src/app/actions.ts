@@ -227,6 +227,27 @@ export async function deleteWorkLog(id: number) {
   }
 }
 
+export async function updateWorkLog(
+  id: number,
+  data: { workerId: number; jobId: number; date: string }
+) {
+  try {
+    const updated = await prisma.workLog.update({
+      where: { id },
+      data: {
+        workerId: data.workerId,
+        jobId: data.jobId,
+        date: new Date(data.date),
+      },
+    });
+    revalidatePath("/");
+    return { success: true, workLog: updated };
+  } catch (error) {
+    console.error("Error updating work log:", error);
+    return { error: "Failed to update work log" };
+  }
+}
+
 // ==========================================
 // BATCH INVOICING ACTIONS (Server-Side)
 // ==========================================
