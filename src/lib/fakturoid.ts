@@ -109,6 +109,9 @@ export async function issueFakturoidBatchInvoice(items: BatchInvoiceItem[]) {
       lines,
     };
 
+    console.log(`Sending Fakturoid invoice request to: https://app.fakturoid.cz/api/v3/accounts/${accountSlug}/invoices.json`);
+    console.log("Fakturoid payload:", JSON.stringify(payload));
+
     const response = await fetch(
       `https://app.fakturoid.cz/api/v3/accounts/${accountSlug}/invoices.json`,
       {
@@ -116,6 +119,7 @@ export async function issueFakturoidBatchInvoice(items: BatchInvoiceItem[]) {
         headers: {
           "User-Agent": userAgent,
           "Content-Type": "application/json",
+          "Accept": "application/json",
           "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
@@ -124,7 +128,10 @@ export async function issueFakturoidBatchInvoice(items: BatchInvoiceItem[]) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Fakturoid Invoice creation failed:", response.status, errorText);
+      console.error(
+        `Fakturoid Invoice creation failed (Status ${response.status}). URL: https://app.fakturoid.cz/api/v3/accounts/${accountSlug}/invoices.json`,
+        errorText
+      );
       return {
         error: `Fakturoid Invoice endpoint returned status ${response.status}: ${errorText}`,
       };
