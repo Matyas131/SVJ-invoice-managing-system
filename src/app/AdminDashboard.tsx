@@ -12,6 +12,7 @@ import {
   createBatchInvoice,
   updateInvoiceStatus,
   updateRecommendation,
+  deleteInvoice,
 } from "./actions";
 
 interface Worker {
@@ -259,6 +260,25 @@ export default function AdminDashboard({
         showToast(res.error, "error");
       } else {
         showToast(`Invoice status updated to "${newStatus}"!`, "success");
+      }
+    });
+  };
+
+  const handleDeleteInvoice = async (id: number, number: string) => {
+    if (
+      !confirm(
+        `Opravdu chcete smazat fakturu #${number} z lokálního systému? Odpracované práce spojené s touto fakturou budou opět uvolněny k vyúčtování.`
+      )
+    ) {
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await deleteInvoice(id);
+      if (res.error) {
+        showToast(res.error, "error");
+      } else {
+        showToast("Faktura byla úspěšně smazána z lokálního systému.", "success");
       }
     });
   };
@@ -616,7 +636,7 @@ export default function AdminDashboard({
                             <option value="Paid" className="bg-zinc-900 text-white">Paid</option>
                           </select>
                         </td>
-                        <td className="py-4 px-4 text-right whitespace-nowrap">
+                        <td className="py-4 px-4 text-right whitespace-nowrap flex items-center justify-end gap-3">
                           {inv.fakturoidUrl && (
                             <a
                               href={inv.fakturoidUrl}
@@ -630,6 +650,13 @@ export default function AdminDashboard({
                               </svg>
                             </a>
                           )}
+                          <button
+                            onClick={() => handleDeleteInvoice(inv.id, inv.invoiceNumber)}
+                            disabled={isPending}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-rose-400 hover:text-rose-300 disabled:opacity-40 transition-colors cursor-pointer bg-rose-500/10 hover:bg-rose-500/20 px-2.5 py-1.5 rounded-lg border border-rose-500/20 hover:border-rose-500/30"
+                          >
+                            Smazat
+                          </button>
                         </td>
                       </tr>
                     );

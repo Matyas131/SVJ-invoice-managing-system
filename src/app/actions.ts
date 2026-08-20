@@ -353,6 +353,39 @@ export async function updateInvoiceStatus(id: number, status: string) {
   }
 }
 
+export async function deleteInvoice(id: number) {
+  try {
+    const invoice = await prisma.invoice.findUnique({
+      where: { id },
+    });
+
+    if (!invoice) {
+      return { error: "Faktura nebyla nalezena" };
+    }
+
+    // Reset linked work logs so they appear as unbilled again in the logger
+    await prisma.workLog.updateMany({
+      where: { invoiceId: invoice.invoiceNumber },
+      data: {
+        isBilled: false,
+        invoiceId: null,
+      },
+    });
+
+    // Delete local invoice record
+    await prisma.invoice.delete({
+      where: { id },
+    });
+
+    revalidatePath("/admin");
+    revalidatePath("/");
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting invoice:", error);
+    return { error: "Failed to delete invoice locally" };
+  }
+}
+
 export async function getLastInvoice() {
   try {
     return await prisma.invoice.findFirst({
