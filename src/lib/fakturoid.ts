@@ -44,10 +44,11 @@ async function getAccessToken(): Promise<string> {
     method: "POST",
     headers: {
       "User-Agent": userAgent,
-      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Type": "application/json",
+      "Accept": "application/json",
       "Authorization": `Basic ${authHeader}`,
     },
-    body: "grant_type=client_credentials",
+    body: JSON.stringify({ grant_type: "client_credentials" }),
   });
 
   if (!response.ok) {
