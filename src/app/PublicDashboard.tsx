@@ -188,7 +188,7 @@ export default function PublicDashboard({
   const leaderboard = Object.keys(earningsMap)
     .map((name) => ({ name, amount: earningsMap[name] }))
     .sort((a, b) => b.amount - a.amount)
-    .slice(0, 6); // Take top 6 for the chart layout
+    .slice(0, 6);
 
   const maxAmount = Math.max(...leaderboard.map((item) => item.amount), 1);
 
@@ -197,9 +197,27 @@ export default function PublicDashboard({
   const todayDay = now.getDate();
   const totalDaysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const dayRatio = Math.round((todayDay / totalDaysInMonth) * 100);
+  const monthName = now.toLocaleString("cs-CZ", { month: "long" }).toUpperCase();
+
+  // Recommendation specific: Calculate days since that recommended work was last logged
+  let daysSinceLastRecommendedJob: number | null = null;
+  let hasRecommendedJobBeenDoneBefore = false;
+
+  if (recommendation && recommendation.jobId) {
+    const matchingLogs = workLogs
+      .filter((log) => log.jobId === recommendation.jobId)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    if (matchingLogs.length > 0) {
+      hasRecommendedJobBeenDoneBefore = true;
+      const lastJobDate = new Date(matchingLogs[0].date);
+      const diffTime = Math.abs(now.getTime() - lastJobDate.getTime());
+      daysSinceLastRecommendedJob = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    }
+  }
 
   return (
-    <div className="flex-1 w-full bg-[#0d0e10] text-[#ffffff] font-mono p-4 sm:p-6 lg:p-8 xl:p-12 flex flex-col justify-start selection:bg-[#4f6272] selection:text-white">
+    <div className="flex-1 w-full bg-[#0d0e10] text-[#ffffff] font-mono p-4 sm:p-6 lg:p-8 xl:p-12 flex flex-col justify-between min-h-[calc(100vh-64px)] selection:bg-[#4f6272] selection:text-white">
       {/* Toast Alert */}
       {toast && (
         <div
@@ -227,8 +245,8 @@ export default function PublicDashboard({
         </div>
       )}
 
-      {/* Main Grid Layout (Stretching edge-to-edge and dynamically resizing) */}
-      <main className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 w-full">
+      {/* Main Grid Layout (Stretching edge-to-edge, dynamically resizing and vertically distributed) */}
+      <main className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 w-full flex-1">
         
         {/* Column 1 (Leftmost Column) */}
         <div className="flex flex-col gap-4">
@@ -262,7 +280,7 @@ export default function PublicDashboard({
           </div>
 
           {/* Tile 3: LOG JOBS (Taller card housing the logging form directly) */}
-          <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between min-h-[380px] group">
+          <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between min-h-[380px] group flex-1">
             <div className="flex items-start justify-between w-full">
               <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">ZAPSAT PRÁCI</span>
               
@@ -337,7 +355,7 @@ export default function PublicDashboard({
         <div className="flex flex-col gap-4">
           
           {/* Tile 4: PLACENÉ FAKTURY (Paid Invoices - Tall double-unit card) */}
-          <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between h-[376px] group">
+          <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between h-[376px] group flex-1">
             <div className="flex items-start justify-between">
               <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">PLACENÉ FAKTURY</span>
               <span className="text-zinc-700 group-hover:text-zinc-400 transition-colors cursor-help">● ● ●</span>
@@ -364,7 +382,7 @@ export default function PublicDashboard({
           </div>
 
           {/* Tile 5: RECOMMENDED WORK (Aesthetic Usability Effect - Tall Blue-grey card) */}
-          <div className="bg-[#4f6272] text-white p-5 rounded flex flex-col justify-between h-[376px] relative overflow-hidden group">
+          <div className="bg-[#4f6272] text-white p-5 rounded flex flex-col justify-between h-[376px] relative overflow-hidden group flex-1">
             {/* Background geometric design vector (Fibonacci Style / Clean housing vector overlay) */}
             <div className="absolute top-2 right-2 w-28 h-28 opacity-15 pointer-events-none">
               <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -384,17 +402,30 @@ export default function PublicDashboard({
                 <h3 className="text-xl font-bold leading-snug uppercase">
                   {showRecommendation && recommendation ? recommendation.title : "Vše v pořádku"}
                 </h3>
-                <p className="text-[10px] text-white/70 mt-3 leading-relaxed">
+                
+                {/* Recommendation details showing how long it has been since that job was last performed */}
+                <div className="text-[10px] text-white/70 mt-4 flex flex-col gap-2.5 leading-relaxed font-mono">
                   {showRecommendation && recommendation ? (
-                    daysSinceLastInvoice !== null ? (
-                      `Od poslední faktury uplynulo ${daysSinceLastInvoice} dní (limit: ${recommendation.conditionValue} dní).`
-                    ) : (
-                      `Nemáme žádné přechozí faktury. Limit doporučení je nastaven na ${recommendation.conditionValue} dní.`
-                    )
+                    <>
+                      <div>
+                        {hasRecommendedJobBeenDoneBefore && daysSinceLastRecommendedJob !== null ? (
+                          <>Naposledy provedeno před <span className="font-bold text-white">{daysSinceLastRecommendedJob} dny</span>.</>
+                        ) : (
+                          <>Tato práce nebyla dosud nikdy provedena.</>
+                        )}
+                      </div>
+                      <div className="text-white/40">
+                        {daysSinceLastInvoice !== null ? (
+                          <>Od poslední faktury uplynulo {daysSinceLastInvoice} dní (limit: {recommendation.conditionValue} dní).</>
+                        ) : (
+                          <>Nemáme žádné přechozí faktury. Limit je {recommendation.conditionValue} dní.</>
+                        )}
+                      </div>
+                    </>
                   ) : (
                     "Žádná doporučená údržba na základě pravidel. Všechny podmínky jsou splněny."
                   )}
-                </p>
+                </div>
               </div>
             </div>
 
@@ -410,10 +441,10 @@ export default function PublicDashboard({
         </div>
 
         {/* Column 3 & 4 (Combined spanning sections) */}
-        <div className="col-span-1 md:col-span-2 flex flex-col gap-4">
+        <div className="col-span-1 md:col-span-2 flex flex-col gap-4 flex-1">
           
           {/* Tile 6: CELKOVÝ PŘEHLED REZIDENTŮ (Clean Vertical Column Graph Only) */}
-          <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between min-h-[376px] group">
+          <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between min-h-[376px] group flex-1">
             <div className="flex items-start justify-between w-full mb-4">
               <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">PŘEHLED REZIDENTŮ (CZK)</span>
               
@@ -466,7 +497,7 @@ export default function PublicDashboard({
           </div>
 
           {/* Sub Grid (Lower half of columns 3 & 4: Unbilled Rewards & Month Progress) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
             
             {/* Tile 7: ROZPRACOVANÉ ODMĚNY (ChatGPT API Usage - Progress bar layout) */}
             <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between h-[180px] group">
@@ -491,47 +522,42 @@ export default function PublicDashboard({
               </div>
             </div>
 
-            {/* Tile 8: PRŮBĚH MĚSÍCE (Circular progress of days in month) */}
-            <div className="bg-[#1c1d1f] p-5 rounded border border-[#2b2c2f]/40 flex flex-col justify-between h-[180px] group">
-              <div className="flex items-start justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">PRŮBĚH MĚSÍCE</span>
-                <span className="text-zinc-700 group-hover:text-zinc-400 transition-colors cursor-help">● ● ●</span>
-              </div>
-
-              <div className="flex items-center justify-center my-auto w-full">
-                {/* SVG circular progress ring tracking days */}
-                <div className="relative w-24 h-24 flex items-center justify-center shrink-0">
+            {/* Tile 8: MONTH PROGRESS CIRCLE GAUGE (Circular progress of days in month, extra large style) */}
+            <div className="bg-[#1c1d1f] p-4 rounded border border-[#2b2c2f]/40 flex flex-col justify-center items-center h-[180px] relative overflow-hidden group">
+              <div className="flex items-center justify-center w-full h-full relative">
+                {/* SVG circular progress ring tracking days (made as big as possible) */}
+                <div className="relative w-[150px] h-[150px] flex items-center justify-center shrink-0">
                   <svg className="absolute w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                     <circle 
                       cx="50" 
                       cy="50" 
-                      r="40" 
-                      className="text-zinc-800" 
-                      strokeWidth="5" 
+                      r="42" 
+                      className="text-zinc-800/80" 
+                      strokeWidth="4" 
                       stroke="currentColor" 
                       fill="transparent" 
                     />
                     <circle 
                       cx="50" 
                       cy="50" 
-                      r="40" 
+                      r="42" 
                       className="text-[#4f6272]" 
-                      strokeWidth="5" 
+                      strokeWidth="4" 
                       stroke="currentColor" 
                       fill="transparent" 
-                      strokeDasharray="251.2" 
-                      strokeDashoffset={251.2 - (251.2 * dayRatio) / 100}
+                      strokeDasharray="263.89" 
+                      strokeDashoffset={263.89 - (263.89 * dayRatio) / 100}
                       strokeLinecap="round"
                     />
                   </svg>
                   
-                  {/* Day count inside the circle */}
+                  {/* Day count and Month name inside the circle */}
                   <div className="text-center z-10 flex flex-col items-center">
-                    <span className="text-3xl font-semibold tracking-tighter text-white leading-none">
+                    <span className="text-4xl sm:text-5xl font-semibold tracking-tighter text-white leading-none">
                       {todayDay}
                     </span>
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">
-                      / {totalDaysInMonth}
+                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1.5">
+                      {monthName}
                     </span>
                   </div>
                 </div>
@@ -543,7 +569,7 @@ export default function PublicDashboard({
           {/* Tile 9: ADMINISTRACE (Custom Dashboard - Tan Accent Card / Spans Col 3-4 width) */}
           <a 
             href="/admin"
-            className="bg-[#c9c7b9] hover:bg-white text-[#1c1d1f] p-5 rounded flex flex-col justify-between h-[180px] group transition-colors shadow-lg cursor-pointer"
+            className="bg-[#c9c7b9] hover:bg-white text-[#1c1d1f] p-5 rounded flex flex-col justify-between h-[180px] group transition-colors shadow-lg cursor-pointer flex-1"
           >
             <div className="flex items-start justify-between w-full">
               <span className="text-[11px] font-bold uppercase tracking-widest text-[#1c1d1f]/70">ZABEZPEČENÁ OBLAST</span>
