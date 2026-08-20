@@ -164,7 +164,7 @@ export default function LoginPage() {
       </div>
 
       <div className="max-w-md w-full text-center mt-4 text-[9px] text-zinc-700 font-bold uppercase tracking-widest leading-relaxed">
-        Administrativní portál SVJ
+        Administrativní portál SVJ.
       </div>
     </div>
   );
