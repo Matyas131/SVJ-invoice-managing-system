@@ -19,8 +19,9 @@ model Worker {
 
 model Job {
   id              Int              @id @default(autoincrement())
-  title           String           @unique
+  title           String
   reward          Float            // Predefined reward in CZK
+  isCustom        Boolean          @default(false)
   workLogs        WorkLog[]
   recommendations Recommendation[]
   createdAt       DateTime         @default(now())

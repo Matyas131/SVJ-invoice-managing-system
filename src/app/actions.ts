@@ -84,6 +84,7 @@ export async function deleteWorker(id: number) {
 export async function getJobs() {
   try {
     return await prisma.job.findMany({
+      where: { isCustom: false },
       orderBy: { title: "asc" },
     });
   } catch (error) {
@@ -102,19 +103,24 @@ export async function createJob(title: string, reward: number) {
   }
 
   try {
+    const existing = await prisma.job.findFirst({
+      where: { title: trimmedTitle, isCustom: false },
+    });
+    if (existing) {
+      return { error: "A job with this title already exists" };
+    }
+
     const job = await prisma.job.create({
       data: {
         title: trimmedTitle,
         reward,
+        isCustom: false,
       },
     });
     revalidatePath("/");
     return { success: true, job };
   } catch (error: any) {
     console.error("Error creating job:", error);
-    if (error.code === "P2002") {
-      return { error: "A job with this title already exists" };
-    }
     return { error: "Failed to create job" };
   }
 }
@@ -129,6 +135,17 @@ export async function updateJob(id: number, title: string, reward: number) {
   }
 
   try {
+    const existing = await prisma.job.findFirst({
+      where: {
+        title: trimmedTitle,
+        isCustom: false,
+        NOT: { id },
+      },
+    });
+    if (existing) {
+      return { error: "A job with this title already exists" };
+    }
+
     const job = await prisma.job.update({
       where: { id },
       data: {
@@ -140,9 +157,6 @@ export async function updateJob(id: number, title: string, reward: number) {
     return { success: true, job };
   } catch (error: any) {
     console.error("Error updating job:", error);
-    if (error.code === "P2002") {
-      return { error: "A job with this title already exists" };
-    }
     return { error: "Failed to update job" };
   }
 }
@@ -229,22 +243,106 @@ export async function deleteWorkLog(id: number) {
 
 export async function updateWorkLog(
   id: number,
-  data: { workerId: number; jobId: number; date: string }
+  data: {
+    workerId: number;
+    jobId?: number;
+    date: string;
+    customTitle?: string;
+    customReward?: number;
+  }
 ) {
   try {
+    const workLog = await prisma.workLog.findUnique({
+      where: { id },
+      include: { job: true },
+    });
+
+    if (!workLog) {
+      return { error: "Work log not found" };
+    }
+
+    const updateData: any = {
+      workerId: data.workerId,
+      date: new Date(data.date),
+    };
+
+    if (workLog.job.isCustom) {
+      if (data.customTitle !== undefined && data.customTitle.trim()) {
+        await prisma.job.update({
+          where: { id: workLog.jobId },
+          data: {
+            title: data.customTitle.trim(),
+            reward: data.customReward ?? workLog.job.reward,
+          },
+        });
+      }
+    } else {
+      if (data.jobId !== undefined) {
+        updateData.jobId = data.jobId;
+      }
+    }
+
     const updated = await prisma.workLog.update({
       where: { id },
-      data: {
-        workerId: data.workerId,
-        jobId: data.jobId,
-        date: new Date(data.date),
-      },
+      data: updateData,
     });
     revalidatePath("/");
     return { success: true, workLog: updated };
   } catch (error) {
     console.error("Error updating work log:", error);
     return { error: "Failed to update work log" };
+  }
+}
+
+export interface CustomWorkLogInput {
+  title: string;
+  reward: number;
+  workerIds: number[];
+  date: string;
+}
+
+export async function createCustomWorkLog(data: CustomWorkLogInput) {
+  const trimmedTitle = data.title?.trim();
+  if (!trimmedTitle) {
+    return { error: "Job title is required" };
+  }
+  if (data.reward === undefined || isNaN(data.reward) || data.reward < 0) {
+    return { error: "Financial reward must be a non-negative number" };
+  }
+  if (!data.workerIds || data.workerIds.length === 0) {
+    return { error: "At least one worker must be selected" };
+  }
+  if (!data.date || isNaN(Date.parse(data.date))) {
+    return { error: "A valid date is required" };
+  }
+
+  try {
+    const job = await prisma.job.create({
+      data: {
+        title: trimmedTitle,
+        reward: data.reward,
+        isCustom: true,
+      },
+    });
+
+    await Promise.all(
+      data.workerIds.map((workerId) =>
+        prisma.workLog.create({
+          data: {
+            workerId,
+            jobId: job.id,
+            date: new Date(data.date),
+          },
+        })
+      )
+    );
+
+    revalidatePath("/");
+    revalidatePath("/admin");
+    return { success: true };
+  } catch (error) {
+    console.error("Error creating custom work log:", error);
+    return { error: "Failed to log custom job" };
   }
 }
 

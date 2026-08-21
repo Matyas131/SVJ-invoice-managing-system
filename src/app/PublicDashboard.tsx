@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import { createWorkLog, deleteWorkLog, updateWorkLog } from "./actions";
+import { createWorkLog, deleteWorkLog, updateWorkLog, createCustomWorkLog } from "./actions";
 
 interface Worker {
   id: number;
@@ -12,6 +12,7 @@ interface Job {
   id: number;
   title: string;
   reward: number;
+  isCustom?: boolean;
 }
 
 interface WorkLog {
@@ -67,11 +68,22 @@ export default function PublicDashboard({
   // Modal State for viewing and editing work logs
   const [isLogsListOpen, setIsLogsListOpen] = useState(false);
 
+  // Custom job log form state (inside the modal)
+  const [customTitle, setCustomTitle] = useState("");
+  const [customReward, setCustomReward] = useState("");
+  const [customDate, setCustomDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  });
+  const [selectedWorkerIds, setSelectedWorkerIds] = useState<number[]>([]);
+
   // Editing work log state
   const [editingLogId, setEditingLogId] = useState<number | null>(null);
   const [editWorkerId, setEditWorkerId] = useState("");
   const [editJobId, setEditJobId] = useState("");
   const [editDate, setEditDate] = useState("");
+  const [editCustomTitle, setEditCustomTitle] = useState("");
+  const [editCustomReward, setEditCustomReward] = useState("");
 
   // Form State (inline on the card)
   const [workerId, setWorkerId] = useState("");
@@ -110,12 +122,46 @@ export default function PublicDashboard({
     });
   };
 
+  const handleCustomSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customTitle || !customReward || !customDate || selectedWorkerIds.length === 0) {
+      showToast("Prosím vyplňte všechna pole a vyberte alespoň jednoho pracovníka", "error");
+      return;
+    }
+
+    const rewardNum = parseFloat(customReward);
+    if (isNaN(rewardNum) || rewardNum < 0) {
+      showToast("Odměna musí být kladné číslo", "error");
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await createCustomWorkLog({
+        title: customTitle,
+        reward: rewardNum,
+        workerIds: selectedWorkerIds,
+        date: customDate,
+      });
+
+      if (res.error) {
+        showToast(res.error, "error");
+      } else {
+        showToast("Jednorázová práce byla úspěšně zapsána!", "success");
+        setCustomTitle("");
+        setCustomReward("");
+        setSelectedWorkerIds([]);
+      }
+    });
+  };
+
   // Edit / Delete Handlers inside Modal
   const startEditing = (log: WorkLog) => {
     setEditingLogId(log.id);
     setEditWorkerId(String(log.workerId));
     setEditJobId(String(log.jobId));
     setEditDate(new Date(log.date).toISOString().split("T")[0]);
+    setEditCustomTitle(log.job.isCustom ? log.job.title : "");
+    setEditCustomReward(log.job.isCustom ? String(log.job.reward) : "");
   };
 
   const cancelEditing = () => {
@@ -124,14 +170,40 @@ export default function PublicDashboard({
 
   const handleEditSubmit = (e: React.FormEvent, logId: number) => {
     e.preventDefault();
-    if (!editWorkerId || !editJobId || !editDate) return;
+    if (!editWorkerId || !editDate) return;
+
+    const log = workLogs.find((l) => l.id === logId);
+    if (!log) return;
+
+    const isCustom = log.job.isCustom;
+
+    if (isCustom && (!editCustomTitle || !editCustomReward)) {
+      showToast("Prosím vyplňte název a odměnu jednorázové práce", "error");
+      return;
+    }
 
     startTransition(async () => {
-      const res = await updateWorkLog(logId, {
-        workerId: parseInt(editWorkerId, 10),
-        jobId: parseInt(editJobId, 10),
-        date: editDate,
-      });
+      let res;
+      if (isCustom) {
+        const rewardNum = parseFloat(editCustomReward);
+        if (isNaN(rewardNum) || rewardNum < 0) {
+          showToast("Odměna musí být kladné číslo", "error");
+          return;
+        }
+        res = await updateWorkLog(logId, {
+          workerId: parseInt(editWorkerId, 10),
+          date: editDate,
+          customTitle: editCustomTitle,
+          customReward: rewardNum,
+        });
+      } else {
+        if (!editJobId) return;
+        res = await updateWorkLog(logId, {
+          workerId: parseInt(editWorkerId, 10),
+          jobId: parseInt(editJobId, 10),
+          date: editDate,
+        });
+      }
 
       if (res.error) {
         showToast(res.error, "error");
@@ -617,7 +689,7 @@ export default function PublicDashboard({
       {/* Logged Jobs List Modal (Arrow click opens this) */}
       {isLogsListOpen && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#1c1d1f] border border-[#2b2c2f] p-6 rounded w-full max-w-4xl max-h-[90vh] flex flex-col relative animate-in fade-in zoom-in duration-200">
+          <div className="bg-[#1c1d1f] border border-[#2b2c2f] p-6 rounded w-full max-w-5xl max-h-[90vh] flex flex-col relative animate-in fade-in zoom-in duration-200">
             
             {/* Close Button */}
             <button 
@@ -629,110 +701,238 @@ export default function PublicDashboard({
               </svg>
             </button>
 
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-6 flex items-center gap-2">
-              Seznam odpracovaných úloh
-            </h2>
+            {/* Split layout: Add Custom Job form on Left, Log List on Right */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden mt-4 flex-1">
+              
+              {/* Column 1: Add Custom Job Form */}
+              <div className="flex flex-col border-b lg:border-b-0 lg:border-r border-[#2b2c2f] pb-6 lg:pb-0 lg:pr-6 overflow-y-auto">
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                  Přidat jednorázovou práci
+                </h2>
 
-            {/* Table/List Container */}
-            <div className="flex-1 overflow-y-auto pr-1 text-xs">
-              {workLogs.length === 0 ? (
-                <div className="text-center py-12 text-zinc-500">Žádné záznamy o práci</div>
-              ) : (
-                <div className="space-y-3">
-                  {workLogs.map((log) => (
-                    <div key={log.id} className="border border-[#2b2c2f] p-3 rounded bg-[#131416] flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-                      
-                      {editingLogId === log.id ? (
-                        /* Edit Mode Form */
-                        <form onSubmit={(e) => handleEditSubmit(e, log.id)} className="w-full grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
-                          <select
-                            value={editWorkerId}
-                            onChange={(e) => setEditWorkerId(e.target.value)}
-                            className="bg-[#1c1d1f] border border-[#2b2c2f] rounded p-2 text-white font-mono text-xs focus:outline-none"
-                            required
+                <form onSubmit={handleCustomSubmit} className="flex flex-col gap-4 bg-[#131416] border border-[#2b2c2f] p-4 rounded text-xs">
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 uppercase font-bold mb-1">
+                      Název práce
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Např. Mimořádný úklid sklepa"
+                      value={customTitle}
+                      onChange={(e) => setCustomTitle(e.target.value)}
+                      className="w-full bg-[#1c1d1f] border border-[#2b2c2f] rounded px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 uppercase font-bold mb-1">
+                      Odměna (CZK)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Např. 800"
+                      value={customReward}
+                      onChange={(e) => setCustomReward(e.target.value)}
+                      className="w-full bg-[#1c1d1f] border border-[#2b2c2f] rounded px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors"
+                      required
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 uppercase font-bold mb-1">
+                      Datum
+                    </label>
+                    <input
+                      type="date"
+                      value={customDate}
+                      onChange={(e) => setCustomDate(e.target.value)}
+                      className="w-full appearance-none block min-w-0 bg-[#1c1d1f] border border-[#2b2c2f] rounded px-3 py-2 text-white focus:outline-none focus:border-zinc-500 transition-colors"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 uppercase font-bold mb-1">
+                      Kdo pracoval? (Vyberte alespoň jednoho)
+                    </label>
+                    <div className="grid grid-cols-1 gap-1.5 mt-1 max-h-[120px] overflow-y-auto border border-[#2b2c2f] bg-[#1c1d1f] p-2 rounded">
+                      {workers.map((w) => {
+                        const isChecked = selectedWorkerIds.includes(w.id);
+                        return (
+                          <label 
+                            key={w.id} 
+                            className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors hover:bg-zinc-800/40 select-none text-[11px] ${
+                              isChecked ? "bg-zinc-800/60 text-white font-bold" : "text-zinc-400"
+                            }`}
                           >
-                            {workers.map((w) => (
-                              <option key={w.id} value={w.id}>{w.name}</option>
-                            ))}
-                          </select>
-
-                          <select
-                            value={editJobId}
-                            onChange={(e) => setEditJobId(e.target.value)}
-                            className="bg-[#1c1d1f] border border-[#2b2c2f] rounded p-2 text-white font-mono text-xs focus:outline-none"
-                            required
-                          >
-                            {jobs.map((j) => (
-                              <option key={j.id} value={j.id}>{j.title} ({j.reward} CZK)</option>
-                            ))}
-                          </select>
-
-                          <input
-                            type="date"
-                            value={editDate}
-                            onChange={(e) => setEditDate(e.target.value)}
-                            className="w-full appearance-none block min-w-0 box-border max-w-full bg-[#1c1d1f] border border-[#2b2c2f] rounded p-2 text-white font-mono text-xs focus:outline-none"
-                            required
-                          />
-
-                          <div className="flex gap-2 justify-end">
-                            <button type="submit" className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold uppercase">
-                              Uložit
-                            </button>
-                            <button type="button" onClick={cancelEditing} className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] font-bold uppercase">
-                              Zrušit
-                            </button>
-                          </div>
-                        </form>
-                      ) : (
-                        /* Read Mode Row */
-                        <>
-                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                            <div>
-                              <span className="text-[10px] text-zinc-500 block uppercase font-bold">Soused</span>
-                              <span className="font-bold text-white">{log.worker.name}</span>
-                            </div>
-                            <div>
-                              <span className="text-[10px] text-zinc-500 block uppercase font-bold">Práce</span>
-                              <span className="text-zinc-300">{log.job.title}</span>
-                            </div>
-                            <div>
-                              <span className="text-[10px] text-zinc-500 block uppercase font-bold">Datum & Odměna</span>
-                              <span className="text-zinc-400 font-mono">
-                                {new Date(log.date).toLocaleDateString("cs-CZ")} • <span className="text-emerald-400 font-bold font-digital">+{log.job.reward} CZK</span>
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2 self-end md:self-auto">
-                            {log.isBilled ? (
-                              <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                Fakturováno
-                              </span>
-                            ) : (
-                              <>
-                                <button 
-                                  onClick={() => startEditing(log)}
-                                  className="px-2.5 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors text-[10px] uppercase font-bold"
-                                >
-                                  Upravit
-                                </button>
-                                <button 
-                                  onClick={() => handleDeleteLog(log.id)}
-                                  className="px-2.5 py-1.5 rounded bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 hover:text-rose-300 transition-colors text-[10px] uppercase font-bold border border-rose-950/50"
-                                >
-                                  Smazat
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </>
-                      )}
-
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                if (isChecked) {
+                                  setSelectedWorkerIds(selectedWorkerIds.filter((id) => id !== w.id));
+                                } else {
+                                  setSelectedWorkerIds([...selectedWorkerIds, w.id]);
+                                }
+                              }}
+                              className="rounded border-[#2b2c2f] bg-[#131416] text-[#4f6272] focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                            />
+                            <span className="truncate">{w.name}</span>
+                          </label>
+                        );
+                      })}
                     </div>
-                  ))}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isPending || workers.length === 0}
+                    className="w-full bg-[#c9c7b9] hover:bg-white text-[#1c1d1f] font-bold py-2.5 rounded transition-all text-[10px] uppercase tracking-widest disabled:opacity-40 mt-2"
+                  >
+                    {isPending ? "Zapisuji..." : "ZAEVIDOVAT"}
+                  </button>
+                </form>
+              </div>
+
+              {/* Column 2 & 3: Log List */}
+              <div className="lg:col-span-2 flex flex-col overflow-hidden h-full">
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                  Seznam odpracovaných úloh
+                </h2>
+
+                {/* Table/List Container */}
+                <div className="flex-1 overflow-y-auto pr-1 text-xs">
+                  {workLogs.length === 0 ? (
+                    <div className="text-center py-12 text-zinc-500">Žádné záznamy o práci</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {workLogs.map((log) => (
+                        <div key={log.id} className="border border-[#2b2c2f] p-3 rounded bg-[#131416] flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                          
+                          {editingLogId === log.id ? (
+                            /* Edit Mode Form */
+                            <form onSubmit={(e) => handleEditSubmit(e, log.id)} className="w-full grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
+                              <select
+                                value={editWorkerId}
+                                onChange={(e) => setEditWorkerId(e.target.value)}
+                                className="bg-[#1c1d1f] border border-[#2b2c2f] rounded p-2 text-white font-mono text-xs focus:outline-none"
+                                required
+                              >
+                                {workers.map((w) => (
+                                  <option key={w.id} value={w.id}>{w.name}</option>
+                                ))}
+                              </select>
+
+                              {log.job.isCustom ? (
+                                /* For custom job: title and reward inputs */
+                                <div className="flex gap-1">
+                                  <input
+                                    type="text"
+                                    value={editCustomTitle}
+                                    onChange={(e) => setEditCustomTitle(e.target.value)}
+                                    className="w-2/3 bg-[#1c1d1f] border border-[#2b2c2f] rounded p-2 text-white font-mono text-xs focus:outline-none"
+                                    placeholder="Název"
+                                    required
+                                  />
+                                  <input
+                                    type="number"
+                                    value={editCustomReward}
+                                    onChange={(e) => setEditCustomReward(e.target.value)}
+                                    className="w-1/3 bg-[#1c1d1f] border border-[#2b2c2f] rounded p-2 text-white font-mono text-xs focus:outline-none"
+                                    placeholder="Kč"
+                                    required
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                </div>
+                              ) : (
+                                /* For predefined job: standard select */
+                                <select
+                                  value={editJobId}
+                                  onChange={(e) => setEditJobId(e.target.value)}
+                                  className="bg-[#1c1d1f] border border-[#2b2c2f] rounded p-2 text-white font-mono text-xs focus:outline-none"
+                                  required
+                                >
+                                  {jobs.map((j) => (
+                                    <option key={j.id} value={j.id}>{j.title} ({j.reward} CZK)</option>
+                                  ))}
+                                </select>
+                              )}
+
+                              <input
+                                type="date"
+                                value={editDate}
+                                onChange={(e) => setEditDate(e.target.value)}
+                                className="w-full appearance-none block min-w-0 box-border max-w-full bg-[#1c1d1f] border border-[#2b2c2f] rounded p-2 text-white font-mono text-xs focus:outline-none"
+                                required
+                              />
+
+                              <div className="flex gap-2 justify-end">
+                                <button type="submit" className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold uppercase font-mono">
+                                  Uložit
+                                </button>
+                                <button type="button" onClick={cancelEditing} className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] font-bold uppercase font-mono">
+                                  Zrušit
+                                </button>
+                              </div>
+                            </form>
+                          ) : (
+                            /* Read Mode Row */
+                            <>
+                              <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2 font-mono">
+                                <div>
+                                  <span className="text-[10px] text-zinc-500 block uppercase font-bold">Soused</span>
+                                  <span className="font-bold text-white">{log.worker.name}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-zinc-500 block uppercase font-bold">Práce</span>
+                                  <span className="text-zinc-300">
+                                    {log.job.title} {log.job.isCustom && <span className="text-[9px] text-[#c9c7b9] border border-[#c9c7b9]/30 px-1 py-0.5 rounded ml-1 font-bold uppercase">Jednorázová</span>}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-zinc-500 block uppercase font-bold">Datum & Odměna</span>
+                                  <span className="text-zinc-400">
+                                    {new Date(log.date).toLocaleDateString("cs-CZ")} • <span className="text-emerald-400 font-bold font-digital">+{log.job.reward} CZK</span>
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 self-end md:self-auto font-mono">
+                                {log.isBilled ? (
+                                  <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                    Fakturováno
+                                  </span>
+                                ) : (
+                                  <>
+                                    <button 
+                                      onClick={() => startEditing(log)}
+                                      className="px-2.5 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors text-[10px] uppercase font-bold"
+                                    >
+                                      Upravit
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDeleteLog(log.id)}
+                                      className="px-2.5 py-1.5 rounded bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 hover:text-rose-300 transition-colors text-[10px] uppercase font-bold border border-rose-950/50"
+                                    >
+                                      Smazat
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </>
+                          )}
+
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+
             </div>
 
           </div>
